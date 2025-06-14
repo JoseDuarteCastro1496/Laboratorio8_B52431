@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    // ... otras opciones
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.d.ts", // Asegura que los archivos .d.ts sean incluidos
+    "src/**/*.tsx",
+    "src/**/*.vue",
+    "env.d.ts" // O la ruta a tu shims-vue.d.ts si está fuera de src
+  ]
+  // ...
+}
