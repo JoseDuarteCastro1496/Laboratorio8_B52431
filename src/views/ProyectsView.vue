@@ -9,13 +9,30 @@
             <th>Proyecto</th>
             <th>Tareas</th>
             <th>Avance</th>
-            <th>Acciones</th> </tr>
+            <th>Acciones</th>
+          </tr>
         </thead>
         <tbody>
           <tr v-for="project in projects" :key="project.id">
             <th>{{ project.id }}</th>
             <td>{{ project.name }}</td>
-            <td>{{ project.tasks }}</td> <td>
+            <td>
+              <ul>
+                <li
+                  v-for="(task, index) in project.tasksArray"
+                  :key="index"
+                  class="flex items-center space-x-2"
+                >
+                  <input
+                    type="checkbox"
+                    v-model="task.completed"
+                    @change="updateCompletedTasks(project)"
+                  />
+                  <span :class="{ 'line-through': task.completed }">{{ task.name }}</span>
+                </li>
+              </ul>
+            </td>
+            <td>
               <progress class="progress progress-primary w-56" :value="calculateProgress(project)" max="100"></progress>
               <span class="ml-2 text-sm">{{ calculateProgress(project) }}%</span>
             </td>
@@ -25,6 +42,9 @@
               </button>
               <button class="btn btn-ghost btn-sm" @click="removeProject(project.id)">
                 Eliminar
+              </button>
+              <button class="btn btn-success btn-sm ml-2" @click="openAddTaskModal(project)">
+                Crear Tarea
               </button>
             </td>
           </tr>
@@ -43,6 +63,7 @@
       </svg>
     </button>
 
+    <!-- Modal para agregar proyecto -->
     <BaseModal modalId="add_project_modal" ref="addProjectModalRef">
       <template #title>
         Agregar Nuevo Proyecto
@@ -53,25 +74,24 @@
             <label class="label">
               <span class="label-text">Nombre del Proyecto</span>
             </label>
-            <input type="text" v-model="newProject.name" placeholder="Ej: Nuevo Sitio Web" class="input input-bordered w-full" required />
+            <input
+              type="text"
+              v-model="newProject.name"
+              placeholder="Ej: Nuevo Sitio Web"
+              class="input input-bordered w-full"
+              required
+            />
           </div>
           <div>
             <label class="label">
-              <span class="label-text">Descripción de Tareas (ej: Diseño, Desarrollo, Pruebas)</span>
+              <span class="label-text">Tareas (separadas por coma)</span>
             </label>
-            <input type="text" v-model="newProject.tasks" placeholder="Ej: Diseño,Desarrollo,Pruebas" class="input input-bordered w-full" />
-          </div>
-          <div>
-            <label class="label">
-              <span class="label-text">Tareas Completadas (Número)</span>
-            </label>
-            <input type="number" v-model.number="newProject.completedTasks" min="0" :max="newProject.totalTasks" class="input input-bordered w-full" required />
-          </div>
-          <div>
-            <label class="label">
-              <span class="label-text">Total de Tareas</span>
-            </label>
-            <input type="number" v-model.number="newProject.totalTasks" min="1" class="input input-bordered w-full" required />
+            <input
+              type="text"
+              v-model="newProject.tasks"
+              placeholder="Ej: Diseño,Desarrollo,Pruebas"
+              class="input input-bordered w-full"
+            />
           </div>
           <div class="modal-action !justify-end">
             <button type="submit" class="btn btn-success">Guardar Proyecto</button>
@@ -80,6 +100,7 @@
       </template>
     </BaseModal>
 
+    <!-- Modal para editar proyecto -->
     <BaseModal modalId="edit_project_modal" ref="editProjectModalRef">
       <template #title>
         Editar: {{ currentProject.name }}
@@ -90,25 +111,22 @@
             <label class="label">
               <span class="label-text">Nombre del Proyecto</span>
             </label>
-            <input type="text" v-model="currentProject.name" class="input input-bordered w-full" required />
+            <input
+              type="text"
+              v-model="currentProject.name"
+              class="input input-bordered w-full"
+              required
+            />
           </div>
           <div>
             <label class="label">
-              <span class="label-text">Lista de Tareas</span>
+              <span class="label-text">Tareas (separadas por coma)</span>
             </label>
-            <input type="text" v-model="currentProject.tasks" class="input input-bordered w-full" />
-          </div>
-          <div>
-            <label class="label">
-              <span class="label-text">Tareas Completadas (Número)</span>
-            </label>
-            <input type="number" v-model.number="currentProject.completedTasks" min="0" :max="currentProject.totalTasks" class="input input-bordered w-full" required />
-          </div>
-          <div>
-            <label class="label">
-              <span class="label-text">Total de Tareas</span>
-            </label>
-            <input type="number" v-model.number="currentProject.totalTasks" min="1" class="input input-bordered w-full" required />
+            <input
+              type="text"
+              v-model="currentProject.tasks"
+              class="input input-bordered w-full"
+            />
           </div>
           <div class="modal-action !justify-start">
             <button type="submit" class="btn btn-success">Guardar Cambios</button>
@@ -118,36 +136,107 @@
       </template>
     </BaseModal>
 
-    
+    <!-- Modal para agregar tarea -->
+    <BaseModal modalId="add_task_modal" ref="addTaskModalRef">
+      <template #title>
+        Agregar tarea a: {{ taskProject.name }}
+      </template>
+      <template #body>
+        <form @submit.prevent="submitAddTask" class="space-y-4">
+          <div>
+            <label class="label">
+              <span class="label-text">Nombre de la Tarea</span>
+            </label>
+            <input
+              type="text"
+              v-model="newTask.name"
+              placeholder="Ej: Diseño de interfaz"
+              class="input input-bordered w-full"
+              required
+            />
+          </div>
+          <div class="modal-action !justify-end">
+            <button type="submit" class="btn btn-success">Agregar Tarea</button>
+          </div>
+        </form>
+      </template>
+    </BaseModal>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted, computed, watch } from 'vue';
+import { ref, reactive, watch, computed } from 'vue';
 import BaseModal from '../components/BaseModal.vue';
 
-// --- Local Storage Persistence y Estado de Proyectos ---
 const STORAGE_KEY = 'projects';
 
 let initialProjects = [];
 try {
   const storedProjects = localStorage.getItem(STORAGE_KEY);
   initialProjects = storedProjects ? JSON.parse(storedProjects) : [
-    // Datos de ejemplo iniciales (ajustados para incluir completedTasks y totalTasks)
-    { id: 1, name: 'Hart-Hagerty', tasks: 'Revisión Documentos, Preparar Informe, Presentación Cliente', completedTasks: 1, totalTasks: 3 },
-    { id: 2, name: 'Otro Proyecto S.A.', tasks: 'Diseño Base de Datos, Desarrollo API, Pruebas Unitarias', completedTasks: 0, totalTasks: 3 },
-    { id: 3, name: 'Innovación Tech', tasks: 'Investigación Mercado, Prototipado, User Testing', completedTasks: 3, totalTasks: 3 },
+    {
+      id: 1,
+      name: 'Hart-Hagerty',
+      tasks: 'Revisión Documentos, Preparar Informe, Presentación Cliente',
+      completedTasks: 1,
+      totalTasks: 3,
+    },
+    {
+      id: 2,
+      name: 'Otro Proyecto S.A.',
+      tasks: 'Diseño Base de Datos, Desarrollo API, Pruebas Unitarias',
+      completedTasks: 0,
+      totalTasks: 3,
+    },
+    {
+      id: 3,
+      name: 'Innovación Tech',
+      tasks: 'Investigación Mercado, Prototipado, User Testing',
+      completedTasks: 3,
+      totalTasks: 3,
+    },
   ];
 } catch (error) {
   console.error("Error al parsear proyectos desde localStorage:", error);
   initialProjects = [
-    { id: 1, name: 'Hart-Hagerty', tasks: 'Revisión Documentos, Preparar Informe, Presentación Cliente', completedTasks: 1, totalTasks: 3 },
-    { id: 2, name: 'Otro Proyecto S.A.', tasks: 'Diseño Base de Datos, Desarrollo API, Pruebas Unitarias', completedTasks: 0, totalTasks: 3 },
-    { id: 3, name: 'Innovación Tech', tasks: 'Investigación Mercado, Prototipado, User Testing', completedTasks: 3, totalTasks: 3 },
+    {
+      id: 1,
+      name: 'Hart-Hagerty',
+      tasks: 'Revisión Documentos, Preparar Informe, Presentación Cliente',
+      completedTasks: 1,
+      totalTasks: 3,
+    },
+    {
+      id: 2,
+      name: 'Otro Proyecto S.A.',
+      tasks: 'Diseño Base de Datos, Desarrollo API, Pruebas Unitarias',
+      completedTasks: 0,
+      totalTasks: 3,
+    },
+    {
+      id: 3,
+      name: 'Innovación Tech',
+      tasks: 'Investigación Mercado, Prototipado, User Testing',
+      completedTasks: 3,
+      totalTasks: 3,
+    },
   ];
 }
+
+// Convertir tareas string a arreglo de objetos con estado completed:
+initialProjects.forEach((project) => {
+  if (!project.tasksArray) {
+    project.tasksArray = project.tasks
+      ? project.tasks.split(',').map((name) => ({ name: name.trim(), completed: false }))
+      : [];
+    project.totalTasks = project.tasksArray.length;
+    project.completedTasks = project.tasksArray.filter(t => t.completed).length;
+  }
+});
+
 const projects = ref(initialProjects);
 
+// Guardar en localStorage automáticamente
 watch(
   projects,
   (newProjects) => {
@@ -156,99 +245,133 @@ watch(
   { deep: true }
 );
 
-// Referencias a los modales
+// Referencias a modales
 const addProjectModalRef = ref(null);
-const editProjectModalRef = ref(null); // NUEVO: Ref para el modal de edición
-const commonModalRef = ref(null);
+const editProjectModalRef = ref(null);
+const addTaskModalRef = ref(null);
 
-// Formulario para nuevo proyecto
+// Nuevo proyecto (simplificado)
 const newProject = reactive({
   name: '',
-  tasks: '', // Descripción de tareas
-  completedTasks: 0,
-  totalTasks: 3, // Por defecto, 3 tareas
+  tasks: '',
 });
 
-// NUEVO: Variable reactiva para el proyecto actualmente en edición
+// Proyecto actual para edición
 const currentProject = reactive({
   id: null,
   name: '',
   tasks: '',
+  tasksArray: [],
   completedTasks: 0,
-  totalTasks: 3,
+  totalTasks: 0,
 });
 
-// Funciones para abrir modales
+// Proyecto para agregar tarea
+const taskProject = reactive({
+  id: null,
+  name: '',
+  tasksArray: [],
+});
+
+// Nueva tarea a agregar
+const newTask = reactive({
+  name: '',
+});
+
+// Abrir modal agregar proyecto
 const openAddModal = () => {
   newProject.name = '';
   newProject.tasks = '';
-  newProject.completedTasks = 0;
-  newProject.totalTasks = 3;
-  if (addProjectModalRef.value) {
-    addProjectModalRef.value.openModal();
-  }
+  if (addProjectModalRef.value) addProjectModalRef.value.openModal();
 };
 
+// Abrir modal editar proyecto
 const openEditModal = (projectToEdit) => {
-  // Copia los datos del proyecto a editar a currentProject
   Object.assign(currentProject, projectToEdit);
-  if (editProjectModalRef.value) {
-    editProjectModalRef.value.openModal();
-  }
+  // Asegurar que tasks string está sincronizado con tasksArray:
+  currentProject.tasks = currentProject.tasksArray.map(t => t.name).join(', ');
+  if (editProjectModalRef.value) editProjectModalRef.value.openModal();
 };
 
-const openCommonModal = () => {
-  if (commonModalRef.value) {
-    commonModalRef.value.openModal();
-  }
-};
-
-// Lógica para agregar un nuevo proyecto
+// Guardar proyecto nuevo
 const submitAddProject = () => {
   const newId = projects.value.length > 0 ? Math.max(...projects.value.map(p => p.id)) + 1 : 1;
-  // Asegúrate de que completedTasks no exceda totalTasks
-  const actualCompletedTasks = Math.min(newProject.completedTasks, newProject.totalTasks);
+  const tasksArr = newProject.tasks
+    ? newProject.tasks.split(',').map(name => ({ name: name.trim(), completed: false }))
+    : [];
 
   projects.value.push({
     id: newId,
     name: newProject.name,
     tasks: newProject.tasks,
-    completedTasks: actualCompletedTasks,
-    totalTasks: newProject.totalTasks,
+    tasksArray: tasksArr,
+    completedTasks: 0,
+    totalTasks: tasksArr.length,
   });
-  if (addProjectModalRef.value) {
-    addProjectModalRef.value.close();
-  }
+  if (addProjectModalRef.value) addProjectModalRef.value.close();
 };
 
-// NUEVO: Lógica para guardar los cambios del proyecto editado
+// Guardar cambios proyecto editado
 const submitEditProject = () => {
   const index = projects.value.findIndex(p => p.id === currentProject.id);
   if (index !== -1) {
-    // Asegúrate de que completedTasks no exceda totalTasks antes de guardar
-    currentProject.completedTasks = Math.min(currentProject.completedTasks, currentProject.totalTasks);
-    // Actualiza el proyecto en el array con los nuevos datos
-    projects.value[index] = { ...currentProject }; // Usa spread para asegurar reactividad si es un objeto anidado
+    const tasksArr = currentProject.tasks
+      ? currentProject.tasks.split(',').map(name => ({ name: name.trim(), completed: false }))
+      : [];
+
+    projects.value[index] = {
+      ...currentProject,
+      tasksArray: tasksArr,
+      completedTasks: tasksArr.filter(t => t.completed).length,
+      totalTasks: tasksArr.length,
+    };
   }
-  if (editProjectModalRef.value) {
-    editProjectModalRef.value.close();
-  }
+  if (editProjectModalRef.value) editProjectModalRef.value.close();
 };
 
-// Lógica para eliminar un proyecto
+// Eliminar proyecto
 const removeProject = (projectId) => {
   projects.value = projects.value.filter(p => p.id !== projectId);
 };
 
-// Función para calcular el progreso
-const calculateProgress = (project) => {
-  if (project.totalTasks === 0) return 0; // Evitar división por cero
-  const progress = (project.completedTasks / project.totalTasks) * 100;
-  return Math.round(progress); // Redondear a un número entero
+// Abrir modal para agregar tarea a proyecto
+const openAddTaskModal = (project) => {
+  Object.assign(taskProject, project);
+  newTask.name = '';
+  if (addTaskModalRef.value) addTaskModalRef.value.openModal();
 };
 
+// Guardar nueva tarea en proyecto
+const submitAddTask = () => {
+  if (!newTask.name.trim()) return;
 
-// --- Lógica para arrastrar el botón (SIN CAMBIOS) ---
+  taskProject.tasksArray.push({ name: newTask.name.trim(), completed: false });
+  taskProject.totalTasks = taskProject.tasksArray.length;
+  updateCompletedTasks(taskProject);
+
+  // Actualizar en el array principal projects
+  const index = projects.value.findIndex(p => p.id === taskProject.id);
+  if (index !== -1) {
+    projects.value[index] = { ...taskProject };
+  }
+
+  if (addTaskModalRef.value) addTaskModalRef.value.close();
+};
+
+// Actualizar tareas completadas y progreso
+const updateCompletedTasks = (project) => {
+  project.completedTasks = project.tasksArray.filter(t => t.completed).length;
+};
+
+// Calcular progreso %
+const calculateProgress = (project) => {
+  if (!project.totalTasks || project.totalTasks === 0) return 0;
+  return Math.round((project.completedTasks / project.totalTasks) * 100);
+};
+
+// --- Botón flotante mover (sin cambios) ---
+import { onMounted, onUnmounted } from 'vue';
+
 const isDragging = ref(false);
 const startX = ref(0);
 const startY = ref(0);
@@ -260,14 +383,42 @@ const buttonStyle = computed(() => ({
   left: `${initialButtonX.value}px`,
 }));
 
-//   isDragging.value = false;
-//   document.removeEventListener('mousemove', drag);
-//   document.removeEventListener('mouseup', stopDrag);
-// };
+const startDrag = (event) => {
+  isDragging.value = true;
+  startX.value = event.clientX;
+  startY.value = event.clientY;
+  document.addEventListener('mousemove', drag);
+  document.addEventListener('mouseup', stopDrag);
+};
 
-// onUnmounted(() => {
-//   document.removeEventListener('mousemove', drag);
-//   document.removeEventListener('mouseup', stopDrag);
-// });
+const drag = (event) => {
+  if (!isDragging.value) return;
+  const deltaX = event.clientX - startX.value;
+  const deltaY = event.clientY - startY.value;
+  initialButtonX.value += deltaX;
+  initialButtonY.value += deltaY;
+  startX.value = event.clientX;
+  startY.value = event.clientY;
+};
+
+const stopDrag = () => {
+  isDragging.value = false;
+  document.removeEventListener('mousemove', drag);
+  document.removeEventListener('mouseup', stopDrag);
+};
+
+onMounted(() => {
+  // Opcional: guardar posición del botón en localStorage si quieres
+});
+
+onUnmounted(() => {
+  document.removeEventListener('mousemove', drag);
+  document.removeEventListener('mouseup', stopDrag);
+});
 </script>
 
+<style scoped>
+.line-through {
+  text-decoration: line-through;
+}
+</style>
