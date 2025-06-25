@@ -21,14 +21,24 @@
                 <li
                   v-for="(task, index) in project.tasksArray"
                   :key="index"
-                  class="flex items-center space-x-2"
+                  class="flex items-center space-x-2 mb-1"
                 >
                   <input
                     type="checkbox"
                     v-model="task.completed"
                     @change="updateCompletedTasks(project)"
+                    class="checkbox checkbox-primary checkbox-sm"
                   />
                   <span :class="{ 'line-through': task.completed }">{{ task.name }}</span>
+                  <button
+                    @click="removeTask(project, index)"
+                    class="btn btn-error btn-xs ml-2"
+                    title="Eliminar Tarea"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
                 </li>
               </ul>
             </td>
@@ -37,15 +47,16 @@
               <span class="ml-2 text-sm">{{ calculateProgress(project) }}%</span>
             </td>
             <td>
+               <button class="btn btn-success btn-sm ml-2" @click="openAddTaskModal(project)">
+                Crear Tarea
+              </button>
               <button class="btn btn-info btn-sm mr-2" @click="openEditModal(project)">
                 Editar
               </button>
               <button class="btn btn-ghost btn-sm" @click="removeProject(project.id)">
-                Eliminar
+                Eliminar Proyecto
               </button>
-              <button class="btn btn-success btn-sm ml-2" @click="openAddTaskModal(project)">
-                Crear Tarea
-              </button>
+             
             </td>
           </tr>
         </tbody>
@@ -56,14 +67,12 @@
       class="btn btn-circle btn-lg btn-secondary shadow-lg fixed z-50"
       :style="buttonStyle"
       @click="openAddModal"
-      @mousedown="startDrag"
     >
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8">
         <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
       </svg>
     </button>
 
-    <!-- Modal para agregar proyecto -->
     <BaseModal modalId="add_project_modal" ref="addProjectModalRef">
       <template #title>
         Agregar Nuevo Proyecto
@@ -100,7 +109,6 @@
       </template>
     </BaseModal>
 
-    <!-- Modal para editar proyecto -->
     <BaseModal modalId="edit_project_modal" ref="editProjectModalRef">
       <template #title>
         Editar: {{ currentProject.name }}
@@ -136,7 +144,6 @@
       </template>
     </BaseModal>
 
-    <!-- Modal para agregar tarea -->
     <BaseModal modalId="add_task_modal" ref="addTaskModalRef">
       <template #title>
         Agregar tarea a: {{ taskProject.name }}
@@ -165,7 +172,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, computed } from 'vue';
+import { ref, reactive, watch, computed, onMounted, onUnmounted } from 'vue';
 import BaseModal from '../components/BaseModal.vue';
 
 const STORAGE_KEY = 'projects';
@@ -303,7 +310,7 @@ const submitAddProject = () => {
   projects.value.push({
     id: newId,
     name: newProject.name,
-    tasks: newProject.tasks,
+    tasks: newProject.tasks, // Keep the string version for initial data
     tasksArray: tasksArr,
     completedTasks: 0,
     totalTasks: tasksArr.length,
@@ -358,6 +365,14 @@ const submitAddTask = () => {
   if (addTaskModalRef.value) addTaskModalRef.value.close();
 };
 
+// Eliminar una tarea de un proyecto
+const removeTask = (project, taskIndex) => {
+  project.tasksArray.splice(taskIndex, 1);
+  project.totalTasks = project.tasksArray.length;
+  updateCompletedTasks(project);
+};
+
+
 // Actualizar tareas completadas y progreso
 const updateCompletedTasks = (project) => {
   project.completedTasks = project.tasksArray.filter(t => t.completed).length;
@@ -369,12 +384,7 @@ const calculateProgress = (project) => {
   return Math.round((project.completedTasks / project.totalTasks) * 100);
 };
 
-// --- Botón flotante mover (sin cambios) ---
-import { onMounted, onUnmounted } from 'vue';
-
-const isDragging = ref(false);
-const startX = ref(0);
-const startY = ref(0);
+// --- Botón flotante posicionamiento fijo (sin drag) ---
 const initialButtonX = ref(window.innerWidth - 100);
 const initialButtonY = ref(window.innerHeight - 100);
 
@@ -382,39 +392,6 @@ const buttonStyle = computed(() => ({
   top: `${initialButtonY.value}px`,
   left: `${initialButtonX.value}px`,
 }));
-
-const startDrag = (event) => {
-  isDragging.value = true;
-  startX.value = event.clientX;
-  startY.value = event.clientY;
-  document.addEventListener('mousemove', drag);
-  document.addEventListener('mouseup', stopDrag);
-};
-
-const drag = (event) => {
-  if (!isDragging.value) return;
-  const deltaX = event.clientX - startX.value;
-  const deltaY = event.clientY - startY.value;
-  initialButtonX.value += deltaX;
-  initialButtonY.value += deltaY;
-  startX.value = event.clientX;
-  startY.value = event.clientY;
-};
-
-const stopDrag = () => {
-  isDragging.value = false;
-  document.removeEventListener('mousemove', drag);
-  document.removeEventListener('mouseup', stopDrag);
-};
-
-onMounted(() => {
-  // Opcional: guardar posición del botón en localStorage si quieres
-});
-
-onUnmounted(() => {
-  document.removeEventListener('mousemove', drag);
-  document.removeEventListener('mouseup', stopDrag);
-});
 </script>
 
 <style scoped>
